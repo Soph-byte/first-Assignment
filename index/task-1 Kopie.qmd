@@ -1,0 +1,764 @@
+---
+title: "Task 1 (20%)"
+author: "Sophie Greta Kersten - id document:100532846"
+format:
+  revealjs:
+    theme: [style.scss]
+    embed-resources: true
+    toc: true
+    toc-location: right
+    toc-title: Index
+---
+
+## Instructions (read before starting)
+
+-   Modify inside the header of `.qmd` document your personal data (name and ID) located in the header of the file.
+
+-   **Do not touch anything else** in the header (note that I have included `embed-resources: true` so that everything is contained in a single html without extra files, and `theme: [style.scss]` to give a cuckoo style to the delivery with the `style.scss` file in the folder)
+
+-   Make sure, **BEFORE further editing** the document, that the `.qmd` file is rendered correctly and the corresponding `.html` is generated in your local folder on your computer.
+
+-   The chunks (code boxes) created are either empty or incomplete, hence most of them have the `#| eval: false` option. Once you edit what you consider, you must change each chunck to `#| eval: true` (or remove it directly) to run them
+
+-   Remember that you can run chunk by chunk with the *play* button or run all chunks up to a given chunk (with the button to the left of the previous one)
+
+-   Only the generated `.html` will be evaluated.
+
+-   Be careful with spaces and line breaks!
+
+### Required packages
+
+Add in the chunck below all the packages you need
+
+```{r}
+rm(list = ls()) # Remove old variables
+
+library(tidyverse)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(forcats)
+library(tibble)
+library(stats)
+library(stringr)
+
+```
+
+## Case study: analysis of Brexit surveys
+
+![](https://media.tenor.com/dn2Mqp-ZPL4AAAAM/boris-boris-johnson.gif)
+
+Let's look at an actual case study based on the articles [«The Brexit Vote: A Divided Nation, a Divided Continent» (S. B. Hobolt, 2016)](https://www.tandfonline.com/doi/full/10.1080/13501763.2016.1225785) and [«Who Voted for Brexit? A Comprehensive District-Level Analysis» (S. O. Becker et al., 2017)](https://academic.oup.com/economicpolicy/article/32/92/601/4459491)
+
+Data will be extracted from the [Elena Llaudet's Github repo](https://raw.githubusercontent.com/ellaudet/DSS/refs/heads/master/BES.csv)
+
+```{r}
+#| eval: true
+library(readr)
+brexit_data <- read.csv("https://raw.githubusercontent.com/ellaudet/DSS/refs/heads/master/BES.csv")
+brexit_data
+
+```
+
+### Question 1
+
+> Write the code you consider to answer the following questions (in tidyverse mode and as efficiently as possible). What is the sample size of the survey? How many variables do we have in the database? How many absentees are there in each variable? Hint: you must use across and define a function inside it.
+
+```{r}
+#| eval: true
+library(tidyverse)
+data <- as_tibble(brexit_data)
+
+
+#| size of the sample 
+nrow(data)
+
+
+#|amount of variables in the dataset
+ncol(data)
+
+count_na <- function(column) {
+  na_count <- sum(is.na(column))
+  
+  return(na_count)
+}
+
+count_na(data$vote)
+count_na(data$leave)
+count_na(data$education)
+count_na(data$age)
+```
+
+Answer: The Sample Size is 30895 and contains 4 variables. The variable "count" & "age" dont contain any Na's. The Variable "leave" contains 2851 Na's. The Variable "education" contains 3425 Na's.
+
+### Question 2
+
+> If you notice we have 2851 missings (`NA` values) in the `leave` variable (binary variable). Check that all of them the absent ones in `leave` correspond to the cases in which the variable `vote` (cuali variable) is equal to `don't known` or `won't vote`. See not only `count` but also `table()` in R base.
+
+```{r}
+#| eval: True
+count(data |> 
+  filter(is.na(leave), vote %in% c("don't know", "won't vote")))
+
+count(data |> 
+  filter(!is.na(leave), vote %in% c("don't know", "won't vote")))
+
+table(data$leave,data$vote, useNA = "ifany")
+```
+
+Answer: 2314 of the Na's is for "dont know" and 537 Na's is for "wont vote". So all of the 2851 Na's correspondent with the two variables.
+
+### Question 3
+
+> Build with tidyverse the two-dimensional frequency table of the variable `vote` and `education` in the same way as done by `table()`.
+
+```{r}
+#| eval: true
+# same as
+library(tidyverse)
+
+table(brexit_data$vote, brexit_data$education)
+
+
+frequency_table <- brexit_data |> 
+  filter(!is.na(education)) |> 
+  count(vote, education) |>    
+  pivot_wider(                 
+    names_from = education, 
+    values_from = n, 
+    values_fill = 0           
+  )
+
+frequency_table
+
+```
+
+> Even making use of that (absolute) frequency table we can build the relative frequency table (normalizing by rows or by columns) with `prop.table(freq_table, margin = ...)` (if `margin = 1` we normalize by rows, if `margin = 2` we normalize by columns).
+
+```{r}
+#| eval: true
+
+library(dplyr)
+library(tidyr)
+freq_abs <- table(brexit_data$vote, brexit_data$education)
+freq_abs
+prop.table(freq_abs, margin = 1)
+prop.table(freq_abs, margin = 2)
+
+
+#frequency table by columns:
+
+freq <- brexit_data |> 
+  filter(!is.na(vote), !is.na(education)) |> 
+  count(vote, education) 
+
+col_props <- freq |> 
+  group_by(education) |> 
+  mutate(proportion = n / sum(n)) |> 
+  select(-n) |> 
+  pivot_wider(names_from = education, values_from = proportion, values_fill = 0)
+
+col_props
+
+row_props <- brexit_data |> 
+  filter(!is.na(vote), !is.na(education)) |> 
+  count(vote, education) |> 
+  group_by(vote) |> 
+  mutate(proportion = n / sum(n)) |> 
+  select(-n) |> 
+  pivot_wider(names_from = education, values_from = proportion, values_fill = 0)
+
+row_props
+
+
+```
+
+Moral: most of the time tidyverse is better than `R base` but not always. [**Let's not be radical of one way of doing things and don't let what you learned in the first classes get rusty**]{.hl-yellow}
+
+### Question 5
+
+> Using the tables above, answer the following questions
+
+-   How many of the people who voted `leave` had the highest level of education?
+
+-   Of the people with the lowest level of education, what percentage of people voted `leave`?
+
+-   Of the people who voted `stay`, what percentage of people had a level 4 education level?
+
+-   What level of education was the least likely to vote?
+
+```{r}
+#| eval: true
+# How many of the people who voted `leave` had the highest level of education?
+frequency_table |> 
+  filter(vote == "leave") |> 
+  pull(`5`) 
+
+#Of the people with the lowest level of education, what percentage of people voted `leave`?
+col_props |> 
+  filter(vote == "leave") |> 
+  pull(`1`) 
+
+
+#Of the people who voted `stay`, what percentage of people had a level 4 education level?
+
+row_props |> 
+  filter(vote == "stay") |> 
+  pull(`4`) 
+
+#What level of education was the least likely to vote?
+
+result <- row_props |> 
+  ungroup() |> 
+  filter(vote == "won't vote") |> 
+  select(where(is.numeric)) |> 
+  pivot_longer(everything(), names_to = "education", values_to = "value") |> 
+  slice_max(value, n = 1)
+
+print(result)
+
+
+```
+
+Answers:
+
+631 people who voted `leave` have the highest level of education.
+
+66,31. % of the people with the lowest level of education, voted for `leave`.
+
+45,88% of the people who voted `stay`, had a level 4 education level.
+
+The third level of education was the least likely to vote.
+
+### Question 6
+
+> What % did the poll estimate voted to remain in the European Union (result after the referendum was \$51.89%)?
+
+```{r}
+#| eval: true
+total <- brexit_data |> 
+  drop_na(leave) |> 
+  nrow()
+
+stay_votes <-sum(brexit_data$vote == "stay",na.rm = TRUE)
+
+stay_votes
+
+
+stay_percentage <- (stay_votes / total) * 100
+stay_percentage
+
+
+
+```
+
+Answer: In the poll estimation, 51,17% voted for staying in the European Union. So the poll was very close, to the real decision.
+
+### Question 7
+
+> Calculates the average age of each of the options of the variable `vote`.
+
+```{r}
+#| eval: true
+average_age <- brexit_data |>     
+  group_by(vote) |>             
+  summarize(average_age = mean(age, na.rm = TRUE))  
+
+print(average_age)
+
+
+```
+
+Answer: The youngest population, was the one, who decided not to vote with an average age of 40 years.The oldest average age, with 55 years where the ones, who wanted to leave EU. The average Age of stay, was 47 years old and the ones who didnt know 48 years old.
+
+### Question 8
+
+> Calculates the % of people with `high education` (`education = 5`) who voted for each option (among the total number of people who voted for that option).
+
+```{r}
+#| eval: true
+library(dplyr)
+library(tidyverse)
+
+brexit_data <- brexit_data |> 
+  filter(!is.na(education))
+
+high_education_votes <- brexit_data |> 
+  filter(education == 5) |> 
+  count(vote, name = "high_education_count")
+
+total_votes <- brexit_data |> 
+  count(vote, name = "total_count")
+
+
+percentage_high_education <- high_education_votes |> 
+  left_join(total_votes, by = "vote") |> 
+  mutate(percentage = (high_education_count / total_count) * 100)
+
+
+percentage_high_education
+
+
+
+```
+
+Answer: Of the people with the highest education level, the majority (14,32 %) wanted to stay in the EU. Only 5% wanted to leave the EU or didn't even vote at all. 7% didn't know.
+
+### Question 9
+
+> The `{corrr}` package offers some tools to measure the linear correlation between two variables beyond the `cor()` function of R base (see also `{corrplot}` to visualize correlations)
+
+```{r}
+#| eval: true
+library(corrr)
+library(dplyr)
+starwars |> 
+  select(where(is.numeric)) |> 
+  correlate()
+```
+
+> Calculate the correlation matrix in our table (among the variables that can be calculated), in which variables is a linear association apparent? In those where it is seen, is it sufficient to conclude that there is causality? For those where it is not apparent, is it sufficient to conclude that there is no association?
+
+```{r}
+#| eval: true
+library(corrr)
+
+brexit_data |> 
+  select(where(is.numeric)) |> 
+  correlate()
+
+```
+
+> Answer: There is a weak correlation between leave and education (-0.28). Persons with a higher degree tend to vote less for leave. There is a weak correlation between leave and age (0.24). Older people tend to vote for leave. Very low correlation between age and education (-0.19). Younger people have a higher education. These correlation may assume some Relationshipt between those variables, but Correlation doesnt automatically mean causality. Sometimes a third variable can produce the correlation between two variables.
+>
+> The `cor.test(var1, var2)` function provides us with a correlation test to obtain in a more quantitative way the absence or possible presence of a linear relationship. Every test in `R` is of class `htest` and has a variable inside where it stores the p-value called `p.value`.
+
+```{r}
+#| eval: true
+cor_testing <- cor.test(starwars$height, starwars$mass)
+cor_testing$p.value
+```
+
+> Obtain a summary table in tidivyse mode with the p-values of the correlation test applied to the variables leave vs education, leave vs age and education vs age, and draw conclusions at $\alpha = 0.05$ confidence level.
+
+```{r}
+#| eval: true
+#leave vs. education
+correlation_1 <- cor.test(brexit_data$leave, brexit_data$education)
+correlation_1$p.value
+
+#leave vs. age
+correlation_2 <- cor.test(brexit_data$leave, brexit_data$age)
+correlation_2$p.value
+
+
+#education vs. age
+correlation_3 <- cor.test(brexit_data$education, brexit_data$age)
+correlation_3$p.value
+
+library(tidyverse)
+
+
+new_table <- tibble(
+  var1 = c("leave", "leave", "education"),
+  var2 = c("education", "age", "age"), 
+  p_value = c(correlation_1$p.value,correlation_2$p.value,correlation_3$p.value)
+)
+
+
+new_table
+
+new_table <- new_table |> 
+  mutate(
+    decision = if_else(
+      p_value < 0.05, 
+      "correlation",       
+      "no correlation"  
+    )
+  )
+new_table
+
+
+
+```
+
+All of the three constellation show a very significant positive correlation, because the p-value either is 0 or very very small and under 0,05.
+
+### Question 10
+
+> The above only tells us about the possible linear relationship between two variables (which must also be quantitative). However, the variable `vote` is qualitative and the variable `education` is actually also qualitative (ordinal qualitative). To convert a variable to qualitative in `R` we must convert it to what is known as a `factor` for havin some `levels` that indicate the possible modalities of our qualitative variable. In the case of `education` it is even qualitative ORDINAL so we will have to specify concretely which levels we have and which order of hierarchy. We can assign numerical levels or even include a label.
+
+```{r}
+#| eval: true
+brexit_data <- brexit_data |> 
+  mutate(
+    vote = as.factor(vote) 
+  )
+
+brexit_data <- brexit_data |> 
+  mutate(
+    education = factor(
+      education, 
+      levels = c(1, 2, 3, 4, 5), 
+      labels = c("No qualification", "GCSE", "A-level", "Graduate", "Postgraduate"), 
+      ordered = TRUE 
+    )
+  )
+
+```
+
+> With the variable `education` converted to ordinal qualitative and `vote` converted to nominal qualitative, determine the association between the two using `chisq.test()` or `fisher.test()`. The latter is for small samples so in this case we will use the former; save it in a summary table in tidyverse mode, and draw conclusions.
+
+```{r}
+#| eval: true
+
+chi_test <- chisq.test(brexit_data$education, brexit_data$vote)
+chi_test
+
+
+summary_table <- tibble(
+  statistic = chi_test$statistic, 
+  p_value = chi_test$p.value,    
+  df = chi_test$parameter        
+)
+
+
+summary_table
+
+
+```
+
+H~0~ : variables education and vote are not associated
+
+H~1~ : the two variables are associated
+
+Answer: there is a significant correlation between education and vote, because the p-value is \<0.05 (very small), so we can reject the nullhypothesis and assume that the two variables correlate.
+
+### Question 11
+
+> We are going to load from the [same repository](https://raw.githubusercontent.com/ellaudet/DSS/refs/heads/master/UK_districts.csv) the file with the global data disaggregated by districts.
+
+```{r}
+#| eval: true
+library(readr)
+brexit_data_district <- read.csv("https://raw.githubusercontent.com/ellaudet/DSS/refs/heads/master/UK_districts.csv")
+brexit_data_district 
+
+```
+
+> Import from wikipedia (take a look at the slides) the population table of the districts of England (with normalized variable names and population as numeric variable). Keep only the columns `district` and `population`
+
+Wikipedia link: <https://en.wikipedia.org/wiki/List_of_English_districts_by_population>
+
+```{r}
+#| eval: true
+library(rvest)
+pop_en <- 'https://en.wikipedia.org/wiki/List_of_English_districts_by_population'
+pop_en <- pop_en |> read_html() |> 
+  html_element("table") |> 
+  html_table()
+
+pop_en <- pop_en |> 
+  select(District, Population) |> 
+  filter(!is.na(District) & !is.na(Population))
+
+
+pop_en
+
+```
+
+### Question 12
+
+> Repeat the process for the rest of the big UK territories that you can find info on (Scotland, Northern Ireland and Wales). Rename the variables appropriately so that you can concatenate them below the table above and get a general `pop_UK` table with as many districts as you can.
+
+```{r}
+#| eval: true
+
+library(rvest)
+#population/districts for scotland 
+pop_scot <- 'https://en.wikipedia.org/wiki/List_of_towns_and_cities_in_Scotland_by_population'
+pop_scot <- pop_scot |> read_html() |> 
+  html_element("table") |> 
+  html_table()
+pop_scot
+
+pop_scot <- pop_scot |> 
+  select('Council area', 'Population (2020)[3]') |> 
+  rename(
+    District = `Council area`,
+    Population = `Population (2020)[3]`
+  ) 
+
+pop_scot
+
+#population for northern ireland
+pop_ire <- 'https://en.wikipedia.org/wiki/Local_government_in_Northern_Ireland'
+
+html_content <- read_html(pop_ire)
+tables <- html_elements(html_content, "table")
+
+pop_ire <- html_table(tables[[2]])
+
+pop_ire <- pop_ire |> 
+  select('Council and district', 'Population of district (2022)[3]') |>
+  rename(
+    District = 'Council and district',
+    Population = 'Population of district (2022)[3]'
+  )
+
+ pop_ire 
+
+#population/districts for wales 
+pop_wal <- 'https://en.wikipedia.org/wiki/Districts_of_Wales'
+html_content <- read_html(pop_wal)
+tables <- html_elements(html_content,"table")
+pop_wal <- html_table(tables[[2]])
+
+
+pop_wal <- pop_wal |> 
+  select(District, 'Population estimate 1992[3]') |> 
+  rename(
+    Population = 'Population estimate 1992[3]'
+  ) 
+pop_wal
+  
+pop_UK <- bind_rows(pop_wal, pop_en, pop_ire, pop_scot)
+pop_UK 
+
+```
+
+### Question 13
+
+> Incorporate the population information into the district table so that we only have those records for which we have Brexit and population information (both sources of information, i.e., keeping only the districts of regions that you find).
+
+```{r}
+#| eval: true
+
+brexit_data_district <-brexit_data_district |> 
+  filter(!is.na(name) & !is.na(leave) & !is.na(high_education))
+
+brexit_data_district <-
+  brexit_data_district |> 
+  inner_join(pop_UK, by = c("name" = "District"))
+
+  brexit_data_district
+```
+
+### Question 14
+
+> Determine the possible associations between `leave`, `high_education` and `population` (all yours, no help, no code). Comment and interpret as much as you can
+
+```{r}
+#| eval: true
+
+brexit_data_district
+
+
+```
+
+Answer:
+
+The districts with the 22 highest quotes for leave have very low perecentage in high education. All of those populations have less than 20% of high_education. The lowest high_eduaction quotes (14%) has a very high amount of people who vote for leave (above 70%) Populations with very highest education quotes, have very low percentage in leave. There could be a association between Education in districts and leave. There could be a small accociation with size of population and percentage of leave. The highest quotes for leaving the UK have small populations (less than 100k).There could be also a small correlation between high_education and population. The lowest education have only small districts
+
+### Question 15
+
+> Create a new variable by recoding the `leave` variable into a binary variable (if `leave` exceeds 50% it will be a 1, otherwise 0). Think of a graph to represent this new recoded variable and run a simple `ggplot()` of it. `{forcats}` package should be used.
+
+```{r}
+#| eval: true
+brexit_data_district <- brexit_data_district |> 
+  mutate(
+    leave_binary = ifelse(leave > 50, 1, 0), 
+    leave_binary = as.factor(leave_binary)  
+  )
+
+brexit_data_district <- brexit_data_district |> 
+  mutate(
+    leave_binary = fct_recode(leave_binary,
+                              "Remain" = "0",
+                              "Leave" = "1")
+  )
+
+ggplot(brexit_data_district, aes(x = leave_binary)) +
+  geom_bar(fill = "steelblue", color = "black") +
+  labs(
+    title = "Brexit Vote",
+    x = "Brexit Vote Majority",
+    y = "Count of Districts"
+  ) +
+  theme_minimal()
+```
+
+### Question 16
+
+> Recode as you see fit the variable `high_education` to convert it into a 4-level ordinal qualitative variable. Think of a graph to represent this new recoded variable and run a simple `ggplot()` (but respecting the ordinal qualitative nature of the variable). `{forcats}` package should be used.
+
+```{r}
+#| eval: true
+
+brexit_data_district <- brexit_data_district |> 
+  mutate(
+    high_education_cat = case_when(
+      high_education <= 20 ~ "low",
+      high_education > 20 & high_education <= 40 ~ "medium",
+      high_education > 40 & high_education <= 60 ~ "high",
+      high_education > 60 & high_education <= 100 ~ "very high"
+    ),
+    high_education_cat = fct_relevel(high_education_cat, 
+                                     "low", "medium", "high", "very high") 
+  )
+
+
+ggplot(brexit_data_district, aes(x = high_education_cat)) +
+  geom_bar(fill = "steelblue", color = "black") +
+  labs(
+    title = "Distribution of Districts by High Education Level",
+    x = "High_Education Level",
+    y = "Count of Districts"
+  ) +
+  theme_minimal()
+
+
+```
+
+### Question 17
+
+> Think of a simple graph that allows us to visually draw conclusions about the possible relationship between `leave` (the original, the continuous one) and `high_education`. Run a simple but informative `ggplot()`.
+
+```{r}
+#| eval: true
+
+ggplot(brexit_data_district, aes(x = high_education, y = leave)) +
+  geom_point(size = 3, color = "steelblue") +      
+  geom_smooth(method = "lm", se = FALSE, color = "red") + 
+  labs(
+    title = "Relationship between High Education and Brexit Vote",
+    x = "High Education (%)",
+    y = "Leave Vote (%)"
+  ) +
+  theme_minimal()
+
+```
+
+### Question 18
+
+> From the `brexit_data_district` table keep only the variables `name`, `leave`, `high_education` and `population`, and only the rows whose `name` is known. Then add a new variable `prop_pop` that calculates what proportion of the total population each district represents.
+
+```{r}
+#| eval: true
+
+brexit_data_district$Population <- gsub(",", "", brexit_data_district$Population) 
+brexit_data_district$Population <- gsub(" ", "", brexit_data_district$Population)  
+brexit_data_district$Population <- as.numeric(brexit_data_district$Population)
+
+brexit_data_district <-
+  brexit_data_district |>
+  select(name, leave, high_education, Population) |> 
+  filter(!is.na(name)) |> 
+  mutate("prop_pop" = Population /sum(Population)) 
+brexit_data_district
+
+```
+
+### Question 19
+
+> After that, we will try to estimate (with the data disaggregated by districts) the % of people who voted `leave` or `remains` (remember: the real value was 51.8% to leave the European Union. Consider a fictitious total population of 100000 people. For each district we want to simulate a `leave` variable that is a normal distribution of:
+
+-   sample size $n$ equals the population that each district would have assuming that fictitious population of 100000 inhabitants (it must be proportional)
+
+-   mean equal to the information in `leave` variable.
+
+-   standard deviation proportional to the population (more population, more dispersion). For example, a constant multiplied by the proportion of the population that each district represents.
+
+> Ensures that the new dummy variable `leave` is between 0 and 100 (eliminates cases if necessary). Then calculate the mean of `leave`. How accurate is it with respect to the actual result of 51.8%? Why is it now different from the first percentage estimated with the first table?
+
+```{r}
+#| eval: true
+
+total_pop <- 100000
+constant <- 10 
+
+simulated <- brexit_data_district |>
+  reframe(name, leave, high_education, Population, prop_pop,
+    sim_population = round(prop_pop * total_pop),
+    sim_leave = rnorm(sim_population, mean = leave, sd = constant * prop_pop)) |> 
+  filter(sim_leave >= 0 & sim_leave <=100)
+
+simulated |> 
+  dplyr::summarise(mean_estimated_leave = mean(sim_leave))
+
+
+```
+
+Answer: Results differ because the standard variation is proportional to the population of each district, which brings some variability. This can lead to different fluctuations and can occur a different outcome than the original one.
+
+### Question 20
+
+> The last question does not exist and it is up to you to formulate and solve it. What question can you think of that could be interesting to ask with the current database? Why? What would be its resolution? You have absolute creative freedom to do so.
+
+> Own Question: To what extent do the number of “leave” values differ within the UK (Wales, Scotland, England and Northern Ireland) and to what extent does education influence this decision?
+
+```{r}
+#| eval: true
+pop_wal <- pop_wal |> 
+  mutate(country = "Wales")
+
+pop_en <- pop_en |> 
+  mutate(country = "England")
+
+pop_scot <- pop_scot |> 
+  mutate(country = "Scotland")
+
+population_UK <- bind_rows(pop_wal, pop_en, pop_scot)
+population_UK
+
+brexit_data_district_new <- brexit_data_district %>%
+  left_join(population_UK, by = c("name" = "District"))
+
+
+leave_summary <- brexit_data_district_new |> 
+  group_by(country) |> 
+  summarise(
+    mean_leave = mean(leave, na.rm = TRUE),
+    median_leave = median(leave, na.rm = TRUE),
+    sd_leave = sd(leave, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+leave_summary
+
+ggplot(brexit_data_district_new, aes(x = country, y = leave)) +
+  geom_boxplot() +
+  labs(
+    title = "Leave Vote Distribution by Country",
+    x = "Country",
+    y = "Leave Vote (%)"
+  ) +
+  theme_minimal()
+
+
+education_correlation <- brexit_data_district_new |> 
+  group_by(country) |> 
+  summarise(
+    correlation = cor(high_education, leave, use = "complete.obs"),
+    .groups = "drop"
+  )
+
+education_correlation
+
+
+ggplot(brexit_data_district_new, aes(x = high_education, y = leave, color = country)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  labs(
+    title = "Leave Vote vs. High Education by Country",
+    x = "High Education (%)",
+    y = "Leave Vote (%)"
+  ) +
+  theme_minimal()
+
+```
+
+Info: in the given data_brexit_district data northern ireland is missing. So the analysis will only focus on Scotland, England and Wales
+
+Answer: The median of england is above 54,16%, so the majority voted for leave. In Scotland only 37,79% voted for leave. So the majority wanted to stay. In Wales most of the half of the populationen wanted to leave (52,54%). The correlation shows, a high assoziation between high education and leave in Wales and England. People with higher education tend do vote for stay. For Scotland is a moderate correlation.
